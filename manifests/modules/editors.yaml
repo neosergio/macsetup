@@ -1,0 +1,16 @@
+id: editors
+name: Editors & IDEs
+description: Pick the ones this machine needs
+# `select: pick` turns this into a per-package menu in the wizard, with
+# `default:` pre-ticked.
+#
+# Picks gate packages, not files: a module's `files` are applied whenever the
+# module is selected, whichever packages you tick. So anything that ships
+# config cannot live as a pick -- its config would land on machines that
+# unticked it. Give those their own module instead.
+select: pick
+default: [visual-studio-code]
+packages:
+  - {name: visual-studio-code, cask: true}
+  - {name: zed, cask: true}
+  - {name: jetbrains-toolbox, cask: true}

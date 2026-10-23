@@ -1,0 +1,8 @@
+id: lang-node
+name: Node
+description: nvm, so a project can pin its own version
+packages:
+  - nvm
+files:
+  - copy: zsh/node.zsh
+    to: ~/.config/macsetup/zsh/30-node.zsh

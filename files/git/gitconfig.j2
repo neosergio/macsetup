@@ -1,0 +1,17 @@
+# Managed by macsetup. Edits here are overwritten on the next `macsetup apply`;
+# the source is files/git/gitconfig.j2 in the manifests repo.
+#
+# Rendered on {{ machine }}.
+
+[user]
+	name = {{ git_name }}
+	email = {{ git_email }}
+
+[init]
+	defaultBranch = main
+
+# Refuse to invent an identity. Without this, an unset user.email makes git
+# silently guess you@<hostname>.local and stamp it on the commit -- a wrong
+# address you only discover later, in a published history.
+[user]
+	useConfigOnly = true

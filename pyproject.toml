@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "macsetup"
+version = "0.1.0"
+description = "Declarative provisioning for macOS: packages and dotfiles, with a preview"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+keywords = ["macos", "homebrew", "dotfiles", "provisioning", "brew-bundle"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Installation/Setup",
+]
+dependencies = [
+    "typer>=0.15",
+    "rich>=13.7",
+    "pydantic>=2.9",
+    "pyyaml>=6.0",
+    "questionary>=2.1.1",
+    "tomli-w>=1.0",
+    "jinja2>=3.1.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/neosergio/macsetup"
+Issues = "https://github.com/neosergio/macsetup/issues"
+
+[project.scripts]
+macsetup = "macsetup.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/macsetup"]
+
+# The example catalog lives at the repo root so it stays easy to read and
+# edit, but a copy is baked into the wheel so a plain `uv tool install
+# macsetup` has something to run against. Point MACSETUP_MANIFESTS and
+# MACSETUP_FILES at your own catalog to replace it.
+[tool.hatch.build.targets.wheel.force-include]
+"manifests" = "macsetup/_data/manifests"
+"files" = "macsetup/_data/files"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,18 @@
+id: shell
+name: Shell
+description: The managed ~/.zshrc block, Homebrew prefix and zsh completion
+always: true
+# No packages: this module exists purely to place files. `apply --only shell`
+# therefore never invokes brew, which makes it the safest module to try
+# against a sandboxed HOME.
+files:
+  # One managed block in a file macsetup does not own. Lines outside the
+  # markers are left alone; re-applying rewrites only between them.
+  - block: shell/zshrc-block.zsh
+    into: ~/.zshrc
+  # Numbered so they load before the tool fragments: completion must be
+  # initialised before anything calls compdef.
+  - copy: zsh/00-homebrew.zsh
+    to: ~/.config/macsetup/zsh/00-homebrew.zsh
+  - copy: zsh/10-completion.zsh
+    to: ~/.config/macsetup/zsh/10-completion.zsh

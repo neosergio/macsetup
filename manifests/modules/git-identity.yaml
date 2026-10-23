@@ -1,0 +1,15 @@
+id: git-identity
+name: Git identity
+description: A rendered gitconfig, as a demonstration of `render:`
+# Rendered rather than copied: identity is the one part that may differ per
+# machine. Override git_name / git_email in the [vars] table of machine.toml;
+# the catalog defaults are in manifests/vars.yaml.
+#
+# The destination is deliberately inert. This is the catalog that ships inside
+# the wheel, so `macsetup init` on a machine that has not written its own
+# manifests yet will run it -- and an example that overwrites a real
+# ~/.gitconfig on first run is a trap, not a demonstration. Point this at
+# ~/.gitconfig in your own catalog, once you mean it.
+files:
+  - render: git/gitconfig.j2
+    to: ~/.config/macsetup/example-gitconfig

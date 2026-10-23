@@ -1,0 +1,7 @@
+id: core
+name: Core
+description: Installed on every machine, no questions asked
+always: true
+packages:
+  - git
+  - gh

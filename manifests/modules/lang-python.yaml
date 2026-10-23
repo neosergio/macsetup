@@ -1,0 +1,8 @@
+id: lang-python
+name: Python
+description: uv, and nothing else -- it supplies its own interpreters
+packages:
+  - uv
+files:
+  - copy: zsh/python.zsh
+    to: ~/.config/macsetup/zsh/20-python.zsh

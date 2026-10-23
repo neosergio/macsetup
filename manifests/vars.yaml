@@ -1,0 +1,10 @@
+# Default values for `render:` template variables. The engine ships none of
+# its own -- identity is data, so it lives here with the manifests that use
+# it. A machine overrides any of these in the [vars] table of
+# ~/.config/macsetup/machine.toml.
+#
+# Rendering uses StrictUndefined: a template referencing a variable with no
+# value is a hard error, not a silently empty setting.
+vars:
+  git_name: Your Name
+  git_email: you@example.com

@@ -1,0 +1,26 @@
+# Profiles bundle modules. Modules marked `always: true` are folded in
+# automatically and do not need listing here.
+#
+# These are an example. Replace them with the way you actually use your
+# machines -- `brew bundle dump` on each one and diffing the results is a
+# good way to turn guesswork into data.
+profiles:
+  work:
+    - cli
+    - git-identity
+    - lang-python
+    - lang-node
+    - editors
+
+  personal:
+    - cli
+    - git-identity
+    - lang-python
+    - editors
+
+  # A loaner or travel machine: enough to be useful in a terminal, nothing else.
+  minimal:
+    - cli
+
+  full:
+    - "*"

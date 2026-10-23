@@ -1,0 +1,16 @@
+id: cli
+name: CLI tools
+description: Terminal utilities
+# eza renders Nerd Font glyphs, so the font is a hard dependency rather than
+# something the wizard could leave unticked. Anything with hard dependencies
+# belongs in its own module for exactly this reason.
+requires: [fonts]
+packages:
+  - tree
+  - ripgrep
+  - eza
+  - zoxide
+files:
+  # 90 so zoxide's init is the last fragment to run; see the file.
+  - copy: zsh/cli.zsh
+    to: ~/.config/macsetup/zsh/90-cli.zsh
