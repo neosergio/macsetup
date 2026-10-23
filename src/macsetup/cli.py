@@ -83,7 +83,7 @@ def _load() -> Catalog:
 def _system(*, require_brew: bool = True) -> System:
     system = detect(SubprocessRunner())
     if require_brew and not system.brew:
-        console.print("[red]Homebrew not found.[/] Run brew/init.sh first.")
+        console.print("[red]Homebrew not found.[/] Install it from https://brew.sh first.")
         raise typer.Exit(1)
     return system
 

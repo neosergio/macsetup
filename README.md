@@ -1,5 +1,7 @@
 # macsetup
 
+[![CI](https://github.com/neosergio/macsetup/actions/workflows/ci.yml/badge.svg)](https://github.com/neosergio/macsetup/actions/workflows/ci.yml)
+
 Declarative provisioning for macOS. Describe what a machine should have in
 YAML; `macsetup plan` shows you the difference against reality, and
 `macsetup apply` closes it.
@@ -185,13 +187,18 @@ HOME=$SB MACSETUP_CONFIG=$SB/.config uv run macsetup apply --only shell --yes
 
 `shell` has no packages, so that never invokes brew.
 
+CI runs the same two things on every push. Lint, the suite and a check that
+the wheel still carries the catalog go on Linux; `plan` and `apply` shell out
+to `brew list`, so every profile is planned and dry-run on a macOS runner,
+along with the file appliers against a throwaway `HOME` and a second apply to
+prove re-running converges to nothing.
+
 ## Not built yet
 
 - `sync` (git pull + apply), `add`, `prune`, `upgrade`, `doctor`
 - macOS `defaults write` tweaks as a step type
 - Mac App Store apps (`brew bundle` handles `mas` entries natively; no manifest
   uses them yet)
-- CI
 
 ## Prior art
 

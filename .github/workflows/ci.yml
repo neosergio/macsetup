@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything that does not need a Mac. Fast, and the job that gates a PR.
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      # --locked rather than plain sync: a pyproject edit that was never
+      # reflected in uv.lock should fail here, not drift silently.
+      - run: uv sync --locked
+
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+
+      # The suite loads the catalog and resolves every profile, so a YAML typo
+      # or a dangling `requires:` already fails above. This covers the other
+      # packaging invariant: manifests/ and files/ are force-included into the
+      # wheel as _data/, and without them `uv tool install macsetup` installs
+      # an engine with nothing to run against.
+      - name: the wheel carries the example catalog
+        run: |
+          uv build --wheel
+          for want in \
+            macsetup/_data/manifests/profiles.yaml \
+            macsetup/_data/manifests/vars.yaml \
+            macsetup/_data/manifests/modules/core.yaml \
+            macsetup/_data/files/shell/zshrc-block.zsh \
+            macsetup/_data/files/git/gitconfig.j2; do
+            if ! unzip -l dist/*.whl | grep -q "$want"; then
+              echo "::error file=pyproject.toml::$want is missing from the wheel"
+              exit 1
+            fi
+          done
+          echo "wheel contains the catalog"
+
+  # plan and apply shell out to `brew list`, so these need a runner that has
+  # Homebrew. This is the end-to-end pass: detect, plan, Brewfile generation
+  # and the file appliers, against a real brew rather than FakeRunner.
+  catalog:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+
+      - name: the catalog loads
+        run: uv run macsetup modules
+
+      # No machine.toml exists on a runner, so every profile is exercised
+      # through the --profile path with picks falling back to their defaults.
+      - name: every profile plans and dry-runs
+        run: |
+          profiles=$(uv run python -c \
+            "import yaml;print(' '.join(yaml.safe_load(open('manifests/profiles.yaml'))['profiles']))")
+          echo "profiles: $profiles"
+          for p in $profiles; do
+            echo "::group::$p"
+            uv run macsetup plan --profile "$p"
+            uv run macsetup apply --profile "$p" --dry-run --yes
+            echo "::endgroup::"
+          done
+
+      - name: brewfiles generate
+        run: uv run macsetup plan --profile full --show-brewfile
+
+      - name: status and untracked run against a real machine
+        run: |
+          uv run macsetup status --profile minimal
+          uv run macsetup untracked --profile minimal
+
+      # The file appliers for real, against a throwaway HOME. `shell` has no
+      # packages, so brew is never invoked and nothing on the runner changes.
+      - name: file actions apply in a sandbox
+        run: |
+          sb=$(mktemp -d)
+          HOME="$sb" MACSETUP_CONFIG="$sb/.config" \
+            uv run macsetup apply --only shell --only git-identity --yes
+          test -f "$sb/.zshrc"
+          test -f "$sb/.config/macsetup/zsh/00-homebrew.zsh"
+          test -f "$sb/.config/macsetup/zsh/10-completion.zsh"
+          test -f "$sb/.config/macsetup/example-gitconfig"
+          # vars.yaml supplies the defaults now that the engine ships none
+          grep -q 'you@example.com' "$sb/.config/macsetup/example-gitconfig"
+          grep -q '>>> macsetup >>>' "$sb/.zshrc"
+          echo "file actions verified"
+
+      # Re-applying a converged machine must be a no-op, not a second write.
+      - name: applying twice is idempotent
+        run: |
+          sb=$(mktemp -d)
+          export HOME="$sb" MACSETUP_CONFIG="$sb/.config"
+          uv run macsetup apply --only shell --yes >/dev/null
+          uv run macsetup apply --only shell --yes | tee /tmp/second.txt
+          grep -q 'Nothing to do' /tmp/second.txt
