@@ -16,7 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      # Pinned to an exact tag on purpose: setup-uv published floating major
+      # tags up to v6 and then stopped, so `@v10` is not a resolvable ref even
+      # though v10.3.2 is the current release. Bump this deliberately.
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
 
@@ -56,7 +59,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      # Pinned to an exact tag on purpose: setup-uv published floating major
+      # tags up to v6 and then stopped, so `@v10` is not a resolvable ref even
+      # though v10.3.2 is the current release. Bump this deliberately.
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
       - run: uv sync --locked
