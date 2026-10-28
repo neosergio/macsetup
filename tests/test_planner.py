@@ -59,6 +59,14 @@ def test_unpicked_packages_are_skipped_not_missing():
     assert [p.name for p in only.skipped] == ["neovim"]
 
 
+def test_a_tapped_package_is_satisfied_by_its_short_name():
+    # The manifest says neosergio/tap/git-wrong-email so brew bundle can tap
+    # it; `brew list` reports it as git-wrong-email.
+    mod = module("core", ["neosergio/tap/git-wrong-email"])
+    plan = build_plan([mod], system(formulae=["git-wrong-email"]))
+    assert plan.converged
+
+
 def test_explicit_picks_override_defaults():
     mod = module("editors", ["zed", "neovim"], select="pick", default=["zed"])
     plan = build_plan([mod], system(), picks={"editors": {"neovim"}})
@@ -71,6 +79,12 @@ def test_untracked_reports_only_unaccounted_packages():
     formulae, casks = untracked(build_plan([mod], state), state)
     assert formulae == ["tmux"]
     assert casks == ["iterm2"]
+
+
+def test_untracked_accounts_for_tapped_packages():
+    mod = module("core", ["neosergio/tap/git-wrong-email"])
+    state = system(formulae=["git-wrong-email"])
+    assert untracked(build_plan([mod], state), state) == ([], [])
 
 
 def test_detect_runs_brew_list_exactly_twice():

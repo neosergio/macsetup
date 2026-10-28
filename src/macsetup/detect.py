@@ -13,6 +13,16 @@ from dataclasses import dataclass, field
 from .runner import Runner
 
 
+def installed_name(name: str) -> str:
+    """The name `brew list` reports for a package.
+
+    A package from a third-party tap is installed as `user/tap/name`, which is
+    also what brew bundle needs to tap it on a fresh machine, but `brew list`
+    shows only `name`.
+    """
+    return name.rsplit("/", 1)[-1]
+
+
 @dataclass(frozen=True)
 class System:
     arch: str
@@ -22,7 +32,7 @@ class System:
     casks: frozenset[str] = field(default_factory=frozenset)
 
     def has(self, name: str, *, cask: bool) -> bool:
-        return name in (self.casks if cask else self.formulae)
+        return installed_name(name) in (self.casks if cask else self.formulae)
 
     @property
     def installed_count(self) -> int:

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import files as files_mod
-from .detect import System
+from .detect import System, installed_name
 from .manifest import FileSpec, Module, Package
 
 
@@ -133,8 +133,10 @@ def untracked(plan: Plan, system: System) -> tuple[list[str], list[str]]:
     Informational in Phase 1 -- this is what `macsetup prune` will eventually
     offer to remove.
     """
-    known_formulae = {p.name for p in plan.selected_packages() if not p.cask and p.mas is None}
-    known_casks = {p.name for p in plan.selected_packages() if p.cask}
+    known_formulae = {
+        installed_name(p.name) for p in plan.selected_packages() if not p.cask and p.mas is None
+    }
+    known_casks = {installed_name(p.name) for p in plan.selected_packages() if p.cask}
     return (
         sorted(system.formulae - known_formulae),
         sorted(system.casks - known_casks),
