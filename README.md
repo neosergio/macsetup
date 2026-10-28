@@ -51,10 +51,16 @@ uv tool install macsetup
 macsetup init
 ```
 
-`init` runs a wizard (machine name → profile → per-module choices), saves the
-result to `~/.config/macsetup/machine.toml`, and applies it. After that no
-flags are needed. The wizard ends on a review screen that can jump back to any
-step with your answers kept, and the profile menu has a back entry too.
+`init` runs a wizard, saves the result to `~/.config/macsetup/machine.toml`,
+and applies it. After that no flags are needed. The wizard asks for a machine
+name, what the Mac is for (a profile, used only to pre-tick a starting point),
+then shows every app in one list grouped by category: Enter ticks and unticks,
+and choosing **Done** moves on. A review screen at the end can jump back to any
+step with your answers kept. `configure` skips the "what is it for" question,
+since the machine already has a selection.
+
+The wizard speaks English or Spanish, following the macOS language (or
+`LANG`); `MACSETUP_LANG=es` or `=en` forces one.
 
 ```sh
 macsetup plan        # what apply would do; changes nothing
@@ -94,6 +100,7 @@ requires: [fonts]          # dependency-closed at resolve time
 packages:
   - ripgrep                          # formula
   - {name: ghostty, cask: true}      # cask
+  - {name: thebrowsercompany-dia, cask: true, title: Dia}   # shown as "Dia"
 files:
   - copy: zsh/cli.zsh
     to: ~/.config/macsetup/zsh/90-cli.zsh
@@ -105,8 +112,10 @@ files:
 biggest class of bug the manifest format exists to prevent.
 
 `always: true` puts a module on every machine regardless of profile.
-`select: pick` turns a module into a per-package menu in the wizard, with
-`default:` pre-ticked. Pydantic forbids unknown keys, so a typo fails at load
+`select: pick` lets the wizard tick the module's packages one by one, as a
+group of apps, with `default:` pre-ticked; without it the module is a single
+all-or-nothing line. `title:` is the name the wizard shows when the Homebrew
+token is not what people call the app. Pydantic forbids unknown keys, so a typo fails at load
 rather than halfway through an install.
 
 ### Profiles

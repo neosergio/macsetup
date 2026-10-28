@@ -17,7 +17,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import brewfile, wizard
+from . import brewfile, i18n, wizard
 from . import files as files_mod
 from . import state as state_mod
 from .detect import System, detect
@@ -225,38 +225,35 @@ def _install(plan: Plan, selection: Selection, *, upgrade: bool, jobs: int | Non
     console.print("[green]Done.[/]")
 
 
-def _run_wizard(catalog: Catalog, current: MachineState | None) -> MachineState:
+def _run_wizard(catalog: Catalog, current: MachineState | None, lang: str) -> MachineState:
+    t = i18n.messages(lang)
     # prompt_toolkit throws a bare OSError when there is no usable terminal
     # (piped stdin, ssh without -t, CI). Catch it here so the flag-based path
     # is discoverable instead of dumping a traceback.
     if not sys.stdin.isatty():
         console.print(
-            "[red]The wizard needs an interactive terminal.[/]\n"
-            "Non-interactively, every answer has a flag: "
-            "[bold]macsetup apply --profile work --yes[/]"
+            f"[red]{t['needs_tty']}[/]\n"
+            f"{t['needs_tty_hint']} [bold]macsetup apply --profile work --yes[/]"
         )
         raise typer.Exit(2)
 
     system = _system()
     try:
-        chosen = wizard.run(catalog, system, SubprocessRunner(), current=current)
+        chosen = wizard.run(catalog, system, SubprocessRunner(), current=current, lang=lang)
     except wizard.WizardAborted:
-        console.print("[yellow]Cancelled.[/] Nothing was saved.")
+        console.print(f"[yellow]{t['cancelled']}[/]")
         raise typer.Exit(130) from None
     except (OSError, EOFError) as exc:
         # repr, not str: EOFError stringifies to nothing, which leaves the
         # message ending in a bare colon.
-        console.print(f"[red]Could not read from the terminal:[/] {exc!r}")
+        console.print(f"[red]{t['no_terminal']}[/] {exc!r}")
         raise typer.Exit(2) from exc
 
-    # Enter on an untouched checkbox selects nothing, which is a legitimate
-    # answer but almost never the intended one -- and it is what the caller is
-    # about to write over the existing selection.
-    if not chosen.modules and not typer.confirm(
-        "Nothing selected — only the always-on modules would apply. Save that?",
-        default=False,
-    ):
-        console.print("[yellow]Cancelled.[/] Nothing was saved.")
+    # Unticking everything is a legitimate answer but almost never the
+    # intended one -- and it is what the caller is about to write over the
+    # existing selection.
+    if not chosen.modules and not typer.confirm(t["empty_confirm"], default=False):
+        console.print(f"[yellow]{t['cancelled']}[/]")
         raise typer.Exit(130)
     return chosen
 
@@ -297,19 +294,18 @@ def init(
 ) -> None:
     """First-run wizard: choose modules, save machine state, then install."""
     catalog = _load()
+    lang = i18n.detect(SubprocessRunner())
+    t = i18n.messages(lang)
     current = state_mod.load()
     if current:
-        console.print(
-            f"[yellow]This machine is already configured[/] as "
-            f"[bold]{current.machine}[/]; re-running with your current answers."
-        )
+        console.print(f"[yellow]{t['already'].format(machine=current.machine)}[/]")
 
-    chosen = _run_wizard(catalog, current)
+    chosen = _run_wizard(catalog, current, lang)
     path = state_mod.save(chosen)
-    console.print(f"\nSaved [bold]{path}[/]")
+    console.print(f"\n{t['saved'].format(path=path)}")
 
     if no_apply:
-        console.print("Run [bold]macsetup apply[/] when ready.")
+        console.print(t["run_apply_later"])
         return
 
     modules = catalog.resolve(only=chosen.modules, include_always=True)
@@ -333,10 +329,12 @@ def init(
 def configure() -> None:
     """Re-run the wizard to change this machine's selection. Installs nothing."""
     catalog = _load()
-    chosen = _run_wizard(catalog, state_mod.load())
+    lang = i18n.detect(SubprocessRunner())
+    t = i18n.messages(lang)
+    chosen = _run_wizard(catalog, state_mod.load(), lang)
     path = state_mod.save(chosen)
-    console.print(f"\nSaved [bold]{path}[/]")
-    console.print("Run [bold]macsetup apply[/] to converge.")
+    console.print(f"\n{t['saved'].format(path=path)}")
+    console.print(t["run_apply"])
 
 
 @app.command()

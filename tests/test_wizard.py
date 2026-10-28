@@ -1,8 +1,10 @@
 """Wizard tests.
 
-questionary needs a real terminal, so the prompt calls are stubbed and the
-tests assert on what the wizard *asks* (which choices are pre-ticked) and what
-it returns. That is where the logic actually lives.
+The prompts need a real terminal, so they are stubbed: questionary's text and
+select get canned answers, and the apps list (`toggle_list`) gets a function
+that decides what is ticked when "Done" is chosen. The tests assert on what
+the wizard *offers* (rows, pre-ticks) and what it returns -- that is where the
+logic lives. The list widget itself is driven for real in test_prompts.py.
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ def catalog() -> Catalog:
                 name="Editors",
                 select="pick",
                 default=["zed"],
-                packages=["zed", "neovim"],
+                packages=["zed", {"name": "neovim", "title": "Neovim"}],
             ),
             "media": Module(id="media", name="Media", packages=["vlc"]),
         },
@@ -55,95 +57,135 @@ def runner() -> FakeRunner:
     return FakeRunner(responses={"scutil --get ComputerName": Result(0, "test-mbp\n")})
 
 
-def stub(monkeypatch, *, text, select, checkboxes):
-    """Feed canned answers; record the choices each checkbox was offered.
+def keep(rows):
+    """Choose "Done" without touching anything."""
+    return [r.value for r in rows if r.value is not None and r.checked]
 
-    `select` answers the menus in order: the profile, then the review screen.
-    A single profile name is shorthand for picking it and saving at review.
+
+def tick(*values):
+    """Choose "Done" with exactly these rows ticked."""
+    return lambda rows: [r.value for r in rows if r.value in values]
+
+
+def stub(monkeypatch, *, selects, apps, texts=()):
+    """Feed canned answers. Returns the rows each apps list was offered.
+
+    `selects` answers the menus in order (the purpose question, if asked,
+    then the review screen); `apps` answers each apps list; `texts` answers
+    the name prompt, falling back to its default.
     """
-    seen: list[list] = []
-    queue = list(checkboxes)
-    selects = [select, wizard.SAVE] if isinstance(select, str) else list(select)
-    texts = [text] if isinstance(text, str) else list(text)
+    offered: list[list] = []
+    selects, apps, texts = list(selects), list(apps), list(texts)
 
-    def fake_checkbox(_message, choices=None, **_kw):
-        seen.append(choices or [])
-        return Answer(queue.pop(0))
+    def fake_toggle(_message, _hint, rows, _done, _summary):
+        offered.append(rows)
+        return apps.pop(0)(rows)
 
     def fake_text(_message, default=None, **_kw):
         return Answer(texts.pop(0) if texts else default)
 
     monkeypatch.setattr(wizard.questionary, "text", fake_text)
     monkeypatch.setattr(wizard.questionary, "select", lambda *a, **k: Answer(selects.pop(0)))
-    monkeypatch.setattr(wizard.questionary, "checkbox", fake_checkbox)
     monkeypatch.setattr(wizard.questionary, "print", lambda *a, **k: None)
-    return seen
+    monkeypatch.setattr(wizard, "toggle_list", fake_toggle)
+    return offered
 
 
-def test_profile_preselects_its_modules(monkeypatch, catalog, system, runner):
-    seen = stub(
-        monkeypatch, text="test-mbp", select="work", checkboxes=[["cli", "editors"], ["zed"]]
-    )
+def ticked(rows):
+    return {r.value for r in rows if r.value is not None and r.checked}
+
+
+# --------------------------------------------------------------------------- #
+# What the apps list offers
+
+
+def test_profile_preticks_its_apps(monkeypatch, catalog, system, runner):
+    offered = stub(monkeypatch, selects=["work", wizard.SAVE], apps=[keep])
     wizard.run(catalog, system, runner)
 
-    checked = {c.value for c in seen[0] if c.checked}
-    assert checked == {"cli", "editors"}
+    assert ticked(offered[0]) == {("mod", "cli"), ("pkg", "editors", "zed")}
 
 
-def test_always_modules_are_not_offered_as_choices(monkeypatch, catalog, system, runner):
-    seen = stub(monkeypatch, text="m", select="work", checkboxes=[["cli", "editors"], ["zed"]])
+def test_pick_modules_become_groups_of_apps(monkeypatch, catalog, system, runner):
+    offered = stub(monkeypatch, selects=["work", wizard.SAVE], apps=[keep])
     wizard.run(catalog, system, runner)
 
-    assert "core" not in {c.value for c in seen[0]}
+    labels = [r.label for r in offered[0]]
+    # A header, then one row per app -- shown by title when it has one.
+    assert labels[:3] == ["Editors", "zed", "Neovim"]
+    assert offered[0][0].value is None
 
 
-def test_custom_profile_preselects_nothing(monkeypatch, catalog, system, runner):
-    seen = stub(monkeypatch, text="m", select=wizard.CUSTOM, checkboxes=[[]])
+def test_atomic_modules_are_one_row_each_under_tools(monkeypatch, catalog, system, runner):
+    offered = stub(monkeypatch, selects=["work", wizard.SAVE], apps=[keep])
     wizard.run(catalog, system, runner)
 
-    assert not [c for c in seen[0] if c.checked]
+    rows = {r.value: r for r in offered[0] if r.value is not None}
+    assert rows[("mod", "cli")].label == "CLI: tree"
+    assert rows[("mod", "cli")].note == "(installed)"
+    assert "Tools" in [r.label for r in offered[0] if r.value is None]
 
 
-def test_reconfigure_preselects_current_machine_not_profile(monkeypatch, catalog, system, runner):
+def test_always_modules_are_not_offered(monkeypatch, catalog, system, runner):
+    offered = stub(monkeypatch, selects=["work", wizard.SAVE], apps=[keep])
+    wizard.run(catalog, system, runner)
+
+    assert not [r for r in offered[0] if r.value and r.value[1] == "core"]
+
+
+def test_custom_start_preticks_nothing(monkeypatch, catalog, system, runner):
+    offered = stub(monkeypatch, selects=[wizard.CUSTOM, wizard.SAVE], apps=[tick(("mod", "media"))])
+    wizard.run(catalog, system, runner)
+
+    assert ticked(offered[0]) == set()
+
+
+# --------------------------------------------------------------------------- #
+# A machine that is already configured
+
+
+def test_configured_machine_skips_the_purpose_question(monkeypatch, catalog, system, runner):
     current = MachineState(machine="old", profile="work", modules=["media"], picks={})
-    seen = stub(monkeypatch, text="old", select="work", checkboxes=[["media"]])
-    wizard.run(catalog, system, runner, current=current)
+    # Only the review menu is answered; a purpose question would pop SAVE.
+    offered = stub(monkeypatch, selects=[wizard.SAVE], apps=[keep])
+    result = wizard.run(catalog, system, runner, current=current)
 
     # 'media' is not in the work profile, but it is what this machine has.
-    assert {c.value for c in seen[0] if c.checked} == {"media"}
-
-
-def test_empty_current_selection_falls_back_to_the_profile(monkeypatch, catalog, system, runner):
-    # Pre-ticking nothing makes a bare Enter save nothing, which would keep an
-    # empty machine.toml empty forever.
-    current = MachineState(machine="m", profile="work", modules=[], picks={})
-    seen = stub(monkeypatch, text="m", select="work", checkboxes=[["cli", "editors"], ["zed"]])
-    wizard.run(catalog, system, runner, current=current)
-
-    assert {c.value for c in seen[0] if c.checked} == {"cli", "editors"}
-
-
-def test_pick_module_offers_its_packages_with_defaults(monkeypatch, catalog, system, runner):
-    seen = stub(monkeypatch, text="m", select="work", checkboxes=[["editors"], ["zed"]])
-    wizard.run(catalog, system, runner)
-
-    package_choices = seen[1]
-    assert {c.value for c in package_choices} == {"zed", "neovim"}
-    assert {c.value for c in package_choices if c.checked} == {"zed"}
+    assert ticked(offered[0]) == {("mod", "media")}
+    assert result.modules == ["media"]
 
 
 def test_existing_picks_win_over_module_defaults(monkeypatch, catalog, system, runner):
     current = MachineState(
         machine="m", profile="work", modules=["editors"], picks={"editors": ["neovim"]}
     )
-    seen = stub(monkeypatch, text="m", select="work", checkboxes=[["editors"], ["neovim"]])
+    offered = stub(monkeypatch, selects=[wizard.SAVE], apps=[keep])
     wizard.run(catalog, system, runner, current=current)
 
-    assert {c.value for c in seen[1] if c.checked} == {"neovim"}
+    assert ticked(offered[0]) == {("pkg", "editors", "neovim")}
+
+
+def test_empty_current_selection_falls_back_to_the_profile(monkeypatch, catalog, system, runner):
+    # Pre-ticking nothing makes "Done" save nothing, which would keep an empty
+    # machine.toml empty forever.
+    current = MachineState(machine="m", profile="work", modules=[], picks={})
+    offered = stub(monkeypatch, selects=["work", wizard.SAVE], apps=[keep])
+    wizard.run(catalog, system, runner, current=current)
+
+    assert ticked(offered[0]) == {("mod", "cli"), ("pkg", "editors", "zed")}
+
+
+# --------------------------------------------------------------------------- #
+# What gets returned
 
 
 def test_result_records_selection(monkeypatch, catalog, system, runner):
-    stub(monkeypatch, text="test-mbp", select="work", checkboxes=[["cli", "editors"], ["neovim"]])
+    stub(
+        monkeypatch,
+        texts=["test-mbp"],
+        selects=["work", wizard.SAVE],
+        apps=[tick(("mod", "cli"), ("pkg", "editors", "neovim"))],
+    )
     result = wizard.run(catalog, system, runner)
 
     assert result.machine == "test-mbp"
@@ -154,6 +196,14 @@ def test_result_records_selection(monkeypatch, catalog, system, runner):
     assert "core" not in result.modules
 
 
+def test_pick_module_with_nothing_ticked_is_not_selected(monkeypatch, catalog, system, runner):
+    stub(monkeypatch, selects=["work", wizard.SAVE], apps=[tick(("mod", "cli"))])
+    result = wizard.run(catalog, system, runner)
+
+    assert result.modules == ["cli"]
+    assert result.picks == {}
+
+
 def test_requires_are_pulled_in(monkeypatch, system, runner):
     catalog = Catalog(
         modules={
@@ -162,10 +212,83 @@ def test_requires_are_pulled_in(monkeypatch, system, runner):
         },
         profiles={"work": ["python"]},
     )
-    stub(monkeypatch, text="m", select="work", checkboxes=[["python"]])
+    stub(monkeypatch, selects=["work", wizard.SAVE], apps=[tick(("mod", "python"))])
     result = wizard.run(catalog, system, runner)
 
     assert set(result.modules) == {"cli", "python"}
+
+
+# --------------------------------------------------------------------------- #
+# Navigation
+
+
+def test_back_from_purpose_returns_to_the_name(monkeypatch, catalog, system, runner):
+    stub(
+        monkeypatch,
+        texts=["first", "second"],
+        selects=[wizard.BACK, "work", wizard.SAVE],
+        apps=[keep],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    assert result.machine == "second"
+    assert result.profile == "work"
+
+
+def test_review_can_change_apps_keeping_what_was_ticked(monkeypatch, catalog, system, runner):
+    offered = stub(
+        monkeypatch,
+        selects=["work", "apps", wizard.SAVE],
+        apps=[tick(("mod", "cli")), tick(("mod", "cli"), ("mod", "media"))],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    # The second time round, what was ticked before is ticked again --
+    # not the profile's suggestion, which would undo the first answer.
+    assert ticked(offered[1]) == {("mod", "cli")}
+    assert set(result.modules) == {"cli", "media"}
+
+
+def test_renaming_from_review_does_not_ask_for_apps_again(monkeypatch, catalog, system, runner):
+    offered = stub(
+        monkeypatch,
+        texts=["first", "renamed"],
+        selects=["work", "name", wizard.SAVE],
+        apps=[keep],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    assert len(offered) == 1
+    assert result.machine == "renamed"
+
+
+def test_another_suggestion_replaces_the_ticks(monkeypatch, catalog, system, runner):
+    offered = stub(
+        monkeypatch,
+        selects=["work", "profile", "personal", wizard.SAVE],
+        apps=[keep, keep],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    assert ticked(offered[1]) == {("mod", "media")}
+    assert result.profile == "personal"
+    assert result.modules == ["media"]
+    assert result.picks == {}
+
+
+def test_configured_machine_can_start_from_a_suggestion(monkeypatch, catalog, system, runner):
+    current = MachineState(machine="m", profile="work", modules=["media"], picks={})
+    offered = stub(
+        monkeypatch,
+        selects=["profile", "work", wizard.SAVE],
+        apps=[keep, keep],
+    )
+    result = wizard.run(catalog, system, runner, current=current)
+
+    # Same profile name, but asked for explicitly: its suggestion replaces
+    # the machine's selection.
+    assert ticked(offered[1]) == {("mod", "cli"), ("pkg", "editors", "zed")}
+    assert set(result.modules) == {"cli", "editors"}
 
 
 def test_cancelling_raises(monkeypatch, catalog, system, runner):
@@ -174,92 +297,16 @@ def test_cancelling_raises(monkeypatch, catalog, system, runner):
         wizard.run(catalog, system, runner)
 
 
-# --------------------------------------------------------------------------- #
-# Navigation
+def test_cancelling_the_apps_list_raises(monkeypatch, catalog, system, runner):
+    stub(monkeypatch, selects=["work"], apps=[lambda rows: None])
+    with pytest.raises(wizard.WizardAborted):
+        wizard.run(catalog, system, runner)
 
 
-def test_back_from_profile_returns_to_the_name(monkeypatch, catalog, system, runner):
-    stub(
-        monkeypatch,
-        text=["first", "second"],
-        select=[wizard.BACK, "work", wizard.SAVE],
-        checkboxes=[["cli"]],
-    )
-    result = wizard.run(catalog, system, runner)
+def test_spanish_labels(monkeypatch, catalog, system, runner):
+    offered = stub(monkeypatch, selects=["work", wizard.SAVE], apps=[keep])
+    wizard.run(catalog, system, runner, lang="es")
 
-    assert result.machine == "second"
-    assert result.profile == "work"
-
-
-def test_review_can_change_modules_keeping_the_previous_answer(
-    monkeypatch, catalog, system, runner
-):
-    seen = stub(
-        monkeypatch,
-        text="m",
-        select=["work", "modules", wizard.SAVE],
-        checkboxes=[["cli"], ["cli", "media"]],
-    )
-    result = wizard.run(catalog, system, runner)
-
-    # The second time round, what was ticked before is ticked again --
-    # not the profile's defaults, which would undo the first answer.
-    assert {c.value for c in seen[1] if c.checked} == {"cli"}
-    assert set(result.modules) == {"cli", "media"}
-
-
-def test_review_can_redo_one_modules_picks(monkeypatch, catalog, system, runner):
-    seen = stub(
-        monkeypatch,
-        text="m",
-        select=["work", "pick:editors", wizard.SAVE],
-        checkboxes=[["cli", "editors"], ["zed"], ["neovim"]],
-    )
-    result = wizard.run(catalog, system, runner)
-
-    # Only the editors picks are asked again, pre-ticked with the first answer.
-    assert len(seen) == 3
-    assert {c.value for c in seen[2] if c.checked} == {"zed"}
-    assert result.picks == {"editors": ["neovim"]}
-
-
-def test_changing_profile_resets_module_preselection(monkeypatch, catalog, system, runner):
-    seen = stub(
-        monkeypatch,
-        text="m",
-        select=["work", "profile", "personal", wizard.SAVE],
-        checkboxes=[["cli", "editors"], ["zed"], ["media"]],
-    )
-    result = wizard.run(catalog, system, runner)
-
-    assert {c.value for c in seen[2] if c.checked} == {"media"}
-    assert result.profile == "personal"
-    assert result.modules == ["media"]
-    # editors is no longer selected, so its picks are not saved.
-    assert result.picks == {}
-
-
-def test_review_offers_a_change_entry_per_pick_module(monkeypatch, catalog, system, runner):
-    offered: list[list] = []
-    selects = ["work", wizard.SAVE]
-
-    def fake_select(_message, choices=None, **_kw):
-        offered.append(choices or [])
-        return Answer(selects.pop(0))
-
-    stub(monkeypatch, text="m", select=[], checkboxes=[["cli", "editors"], ["zed"]])
-    monkeypatch.setattr(wizard.questionary, "select", fake_select)
-    wizard.run(catalog, system, runner)
-
-    review = {c.value for c in offered[1]}
-    assert {wizard.SAVE, "name", "profile", "modules", "pick:editors"} == review
-
-
-def test_module_menu_describes_what_each_module_installs(monkeypatch, catalog, system, runner):
-    seen = stub(monkeypatch, text="m", select="work", checkboxes=[["cli", "editors"], ["zed"]])
-    wizard.run(catalog, system, runner)
-
-    descriptions = {c.value: c.description for c in seen[0]}
-    # A pick module lists its options before it is ticked, not only after.
-    assert descriptions["editors"] == "zed, neovim"
-    assert descriptions["cli"] == "tree (installed)"
+    assert "Herramientas" in [r.label for r in offered[0] if r.value is None]
+    rows = {r.value: r for r in offered[0] if r.value is not None}
+    assert rows[("mod", "cli")].note == "(instalado)"
