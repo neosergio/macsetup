@@ -30,6 +30,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
+      - run: shellcheck install.sh
 
       # The suite loads the catalog and resolves every profile, so a YAML typo
       # or a dangling `requires:` already fails above. This covers the other
@@ -107,6 +108,17 @@ jobs:
           grep -q 'you@example.com' "$sb/.config/macsetup/example-gitconfig"
           grep -q '>>> macsetup >>>' "$sb/.zshrc"
           echo "file actions verified"
+
+      # The one-line installer, piped the way the README shows it, against a
+      # throwaway HOME. The runner already has brew and uv, so this covers the
+      # macsetup install and the hand-off; running it twice proves re-runs work.
+      - name: install.sh bootstraps and re-runs
+        run: |
+          sb=$(mktemp -d)
+          for run in 1 2; do
+            HOME="$sb" MACSETUP_SOURCE="$PWD" bash -s -- plan --profile minimal < install.sh
+          done
+          test -x "$sb/.local/bin/macsetup"
 
       # Re-applying a converged machine must be a no-op, not a second write.
       - name: applying twice is idempotent

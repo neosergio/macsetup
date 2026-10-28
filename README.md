@@ -28,6 +28,23 @@ environment without every machine getting every package.
 
 ## Install
 
+One line, on a Mac with nothing on it yet:
+
+```sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/neosergio/macsetup/main/install.sh)"
+```
+
+[`install.sh`](install.sh) installs Homebrew if it is missing, then uv, then
+macsetup, and ends in the `init` wizard. Each step checks first, so it is safe
+to re-run. Arguments replace the wizard, for unattended machines:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/neosergio/macsetup/main/install.sh \
+  | bash -s -- apply --profile work --yes
+```
+
+If you already have Homebrew, the manual route is three commands:
+
 ```sh
 brew install uv
 uv tool install macsetup
