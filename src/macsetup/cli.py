@@ -244,7 +244,9 @@ def _run_wizard(catalog: Catalog, current: MachineState | None) -> MachineState:
         console.print("[yellow]Cancelled.[/] Nothing was saved.")
         raise typer.Exit(130) from None
     except (OSError, EOFError) as exc:
-        console.print(f"[red]Could not read from the terminal:[/] {exc}")
+        # repr, not str: EOFError stringifies to nothing, which leaves the
+        # message ending in a bare colon.
+        console.print(f"[red]Could not read from the terminal:[/] {exc!r}")
         raise typer.Exit(2) from exc
 
     # Enter on an untouched checkbox selects nothing, which is a legitimate

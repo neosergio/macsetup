@@ -34,10 +34,23 @@ fi
 
 # `curl | bash` feeds the script itself on stdin, so anything that prompts has
 # to read the terminal explicitly -- otherwise it would swallow the rest of
-# this file as its answers.
-if { : </dev/tty; } 2>/dev/null; then have_tty=1; else have_tty=0; fi
+# this file as its answers. That means the terminal's real device, not
+# /dev/tty: macOS kqueue rejects /dev/tty with EINVAL, and the wizard's event
+# loop (prompt_toolkit on asyncio) dies on it before asking anything.
+tty_dev=""
+if [[ ! -t 0 ]]; then
+  tty_dev="/dev/$(ps -o tty= -p $$ | tr -d ' ')"
+  { : <"$tty_dev"; } 2>/dev/null || tty_dev=""
+fi
+if [[ -t 0 || -n $tty_dev ]]; then have_tty=1; else have_tty=0; fi
 interactive() {
-  if ((have_tty)); then "$@" </dev/tty; else "$@" </dev/null; fi
+  if [[ -t 0 ]]; then
+    "$@"
+  elif [[ -n $tty_dev ]]; then
+    "$@" <"$tty_dev"
+  else
+    "$@" </dev/null
+  fi
 }
 
 find_brew() {
