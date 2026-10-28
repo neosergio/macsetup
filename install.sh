@@ -101,11 +101,13 @@ main() {
     brew install uv
   fi
 
-  # On PATH before the install, or uv warns about a dir we fix right after.
+  # Persist uv's bin dir for future shells, then add it to this one -- in that
+  # order: update-shell does nothing when the dir is already on PATH, which
+  # left `macsetup: command not found` in every new terminal.
+  uv tool update-shell >/dev/null 2>&1 || true
   PATH="$(uv tool dir --bin):$PATH"
   say "Installing macsetup"
   uv tool install --upgrade "$MACSETUP_SOURCE"
-  uv tool update-shell >/dev/null 2>&1 || true
 
   if (($#)); then
     say "Running: macsetup $*"

@@ -117,9 +117,12 @@ jobs:
         run: |
           sb=$(mktemp -d)
           for run in 1 2; do
-            HOME="$sb" MACSETUP_SOURCE="$PWD" bash -s -- plan --profile minimal < install.sh
+            HOME="$sb" SHELL=/bin/zsh MACSETUP_SOURCE="$PWD" \
+              bash -s -- plan --profile minimal < install.sh
           done
           test -x "$sb/.local/bin/macsetup"
+          # A new terminal has to find it too, not just the installer's shell.
+          env -i HOME="$sb" PATH=/usr/bin:/bin zsh -l -c 'command -v macsetup'
 
       # Re-applying a converged machine must be a no-op, not a second write.
       - name: applying twice is idempotent
