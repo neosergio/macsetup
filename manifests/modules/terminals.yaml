@@ -3,7 +3,16 @@ name: Terminals
 description: A terminal app to replace Terminal.app
 select: pick
 default: [ghostty]
+# Left out on purpose: alacritty, whose cask Homebrew has disabled (ticking it
+# would fail the whole apply), and hyper, which adds little over the rest.
+#
+# wezterm's stable cask is the last tagged release, from early 2024; the
+# project mostly ships nightlies now (wezterm@nightly). Stable is still the
+# safer default for a menu like this.
 packages:
   - {name: ghostty, cask: true}
   - {name: iterm2, cask: true}
   - {name: warp, cask: true}
+  - {name: cmux, cask: true}       # built on Ghostty, for running agents side by side
+  - {name: kitty, cask: true}
+  - {name: wezterm, cask: true}
