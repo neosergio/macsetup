@@ -253,3 +253,13 @@ def test_review_offers_a_change_entry_per_pick_module(monkeypatch, catalog, syst
 
     review = {c.value for c in offered[1]}
     assert {wizard.SAVE, "name", "profile", "modules", "pick:editors"} == review
+
+
+def test_module_menu_describes_what_each_module_installs(monkeypatch, catalog, system, runner):
+    seen = stub(monkeypatch, text="m", select="work", checkboxes=[["cli", "editors"], ["zed"]])
+    wizard.run(catalog, system, runner)
+
+    descriptions = {c.value: c.description for c in seen[0]}
+    # A pick module lists its options before it is ticked, not only after.
+    assert descriptions["editors"] == "zed, neovim"
+    assert descriptions["cli"] == "tree (installed)"

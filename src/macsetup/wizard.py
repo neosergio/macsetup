@@ -62,6 +62,23 @@ def _module_label(module: Module, system: System) -> str:
     return f"{module.id:<14} [{suffix}]{detail}"
 
 
+def module_contents(module: Module, system: System | None = None) -> str:
+    """What a module actually installs, for showing before anyone ticks it.
+
+    The label only has room for a count; this is the list behind it, so a
+    `select: pick` module is not a black box until its own step.
+    """
+    names = [
+        f"{p.name} (installed)" if system and system.has(p.name, cask=p.cask) else p.name
+        for p in module.packages
+    ]
+    if names:
+        return ", ".join(names)
+    if module.files:
+        return f"no packages; manages {len(module.files)} file(s)"
+    return "nothing"
+
+
 def run(
     catalog: Catalog,
     system: System,
@@ -187,6 +204,8 @@ def _ask_modules(
                     title=_module_label(m, system),
                     value=m.id,
                     checked=m.id in preselected,
+                    # Shown under the list for the highlighted module.
+                    description=module_contents(m, system),
                 )
                 for m in optional
             ],

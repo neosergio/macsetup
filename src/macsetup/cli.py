@@ -271,12 +271,12 @@ def list_modules() -> None:
 
     table = Table(title="modules", box=None, pad_edge=False)
     table.add_column("id", style="bold")
-    table.add_column("packages", justify="right")
     table.add_column("select", style="dim")
-    table.add_column("description")
+    table.add_column("installs")
+    table.add_column("description", style="dim")
     for module in catalog.modules.values():
         flags = module.select + (" · always" if module.always else "")
-        table.add_row(module.id, str(len(module.packages)), flags, module.description)
+        table.add_row(module.id, flags, wizard.module_contents(module), module.description)
     console.print(table)
 
     profiles = Table(title="profiles", box=None, pad_edge=False)
