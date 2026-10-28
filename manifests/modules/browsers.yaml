@@ -1,0 +1,10 @@
+id: browsers
+name: Browsers
+description: Pick the ones this machine needs
+select: pick
+default: [google-chrome]
+# Arc is left out: Homebrew marks its cask deprecated.
+packages:
+  - {name: google-chrome, cask: true}
+  - {name: firefox, cask: true}
+  - {name: brave-browser, cask: true}

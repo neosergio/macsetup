@@ -1,0 +1,9 @@
+id: ai
+name: AI assistants
+description: Desktop apps and the Claude Code CLI
+select: pick
+default: [claude, chatgpt]
+packages:
+  - {name: claude, cask: true}
+  - {name: chatgpt, cask: true}
+  - {name: claude-code, cask: true}

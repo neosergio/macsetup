@@ -1,0 +1,9 @@
+id: terminals
+name: Terminals
+description: A terminal app to replace Terminal.app
+select: pick
+default: [ghostty]
+packages:
+  - {name: ghostty, cask: true}
+  - {name: iterm2, cask: true}
+  - {name: warp, cask: true}

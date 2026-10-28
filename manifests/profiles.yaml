@@ -11,12 +11,18 @@ profiles:
     - lang-python
     - lang-node
     - editors
+    - browsers
+    - terminals
+    - ai
 
   personal:
     - cli
     - git-identity
     - lang-python
     - editors
+    - browsers
+    - terminals
+    - ai
 
   # A loaner or travel machine: enough to be useful in a terminal, nothing else.
   minimal:
