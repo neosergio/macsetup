@@ -99,6 +99,9 @@ def run(
     machine = current.machine if current else default_machine_name(runner)
     profile = current.profile if current else _default_profile(catalog)
     ticks: set[Tick] | None = None  # None until the apps step has been answered
+    # What this machine had before the wizard, so review can say what is
+    # being dropped. Unticking is easy to do by accident and silent otherwise.
+    before = initial_ticks(catalog, current, profile) if from_machine else set()
 
     step = "name"
     while True:
@@ -128,7 +131,7 @@ def run(
             step = "review"
 
         elif step == "review":
-            action = _review(catalog, machine, ticks or set(), t)
+            action = _review(catalog, machine, ticks or set(), before, t)
             if action == SAVE:
                 break
             step = action
@@ -204,8 +207,8 @@ def rows(catalog: Catalog, system: System, ticks: set[Tick], t: dict[str, str]) 
         out.append(Row(module.name))
         for p in module.packages:
             value = ("pkg", module.id, p.name)
-            note = t["installed"] if system.has(p.name, cask=p.cask) else ""
-            out.append(Row(p.label, value, value in ticks, note))
+            installed = system.has(p.name, cask=p.cask)
+            out.append(Row(p.label, value, value in ticks, *_notes(installed, t)))
 
     atomic = [m for m in optional if m.select != "pick"]
     if atomic:
@@ -219,7 +222,28 @@ def rows(catalog: Catalog, system: System, ticks: set[Tick], t: dict[str, str]) 
         installed = bool(module.packages) and all(
             system.has(p.name, cask=p.cask) for p in module.packages
         )
-        out.append(Row(label, value, value in ticks, t["installed"] if installed else ""))
+        out.append(Row(label, value, value in ticks, *_notes(installed, t)))
+    return out
+
+
+def _notes(installed: bool, t: dict[str, str]) -> tuple[str, str]:
+    """(note, note_off): an installed app that is not ticked is flagged."""
+    return (t["installed"], t["installed_off"]) if installed else ("", "")
+
+
+def removed(catalog: Catalog, before: set[Tick], ticks: set[Tick]) -> list[str]:
+    """Labels of what was selected before and is not any more, in list order.
+
+    A module unticked but still pulled in by another's `requires` is not
+    removed -- it will still be applied -- so it is not reported.
+    """
+    still, _ = selection(catalog, ticks)
+    gone = before - ticks
+    out = []
+    for module in catalog.modules.values():
+        if ("mod", module.id) in gone and module.id not in still:
+            out.append(module.name)
+        out += [p.label for p in module.packages if ("pkg", module.id, p.name) in gone]
     return out
 
 
@@ -256,15 +280,16 @@ def _ask_apps(catalog: Catalog, system: System, ticks: set[Tick], t: dict[str, s
     always = [m.name for m in catalog.modules.values() if m.always]
     if always:
         questionary.print(f"  {t['always'].format(names=', '.join(always))}", style="fg:#888888")
-    answer = toggle_list(
-        t["apps"], t["apps_hint"], rows(catalog, system, ticks, t), t["done"], t["ticked"]
-    )
+    hint = f"{t['apps_hint']}\n  {t['legend']}"
+    answer = toggle_list(t["apps"], hint, rows(catalog, system, ticks, t), t["done"], t["ticked"])
     if answer is None:
         raise WizardAborted("cancelled")
     return set(answer)
 
 
-def _review(catalog: Catalog, machine: str, ticks: set[Tick], t: dict[str, str]) -> str:
+def _review(
+    catalog: Catalog, machine: str, ticks: set[Tick], before: set[Tick], t: dict[str, str]
+) -> str:
     """Summarise the answers and ask whether to save or go back to a step."""
     modules, picks = selection(catalog, ticks)
     lines = []
@@ -284,6 +309,11 @@ def _review(catalog: Catalog, machine: str, ticks: set[Tick], t: dict[str, str])
         questionary.print(f"  {t['apps_label'] if i == 0 else '':<8} {line}", style="bold")
     if pulled:
         questionary.print(f"  {t['required'].format(names=', '.join(pulled))}", style="fg:yellow")
+    dropped = removed(catalog, before, ticks)
+    if dropped:
+        questionary.print(
+            f"  {t['removed'].format(names=', '.join(dropped))}", style="fg:yellow bold"
+        )
 
     choices = [
         Choice(title=t["save"], value=SAVE),

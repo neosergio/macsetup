@@ -310,3 +310,62 @@ def test_spanish_labels(monkeypatch, catalog, system, runner):
     assert "Herramientas" in [r.label for r in offered[0] if r.value is None]
     rows = {r.value: r for r in offered[0] if r.value is not None}
     assert rows[("mod", "cli")].note == "(instalado)"
+
+
+# --------------------------------------------------------------------------- #
+# Installed vs chosen, and what an edit drops
+
+
+def test_installed_rows_are_flagged_while_unticked(monkeypatch, catalog, system, runner):
+    offered = stub(monkeypatch, selects=["work", wizard.SAVE], apps=[keep])
+    wizard.run(catalog, system, runner)
+
+    rows = {r.value: r for r in offered[0] if r.value is not None}
+    # tree is installed: the row carries both notes, the widget picks by tick.
+    assert (rows[("mod", "cli")].note, rows[("mod", "cli")].note_off) == (
+        "(installed)",
+        "(installed, not chosen)",
+    )
+    # Not installed: nothing to flag either way.
+    assert (rows[("mod", "media")].note, rows[("mod", "media")].note_off) == ("", "")
+
+
+def test_removed_lists_what_the_machine_had(catalog):
+    before = {("mod", "cli"), ("pkg", "editors", "zed"), ("pkg", "editors", "neovim")}
+    after = {("pkg", "editors", "neovim")}
+    assert wizard.removed(catalog, before, after) == ["CLI", "zed"]
+
+
+def test_removed_ignores_modules_still_pulled_in(system):
+    catalog = Catalog(
+        modules={
+            "cli": Module(id="cli", name="CLI", packages=["tree"]),
+            "python": Module(id="python", name="Python", requires=["cli"], packages=["uv"]),
+        },
+        profiles={"work": ["python"]},
+    )
+    before = {("mod", "cli"), ("mod", "python")}
+    # cli unticked, but python requires it, so it is still applied.
+    assert wizard.removed(catalog, before, {("mod", "python")}) == []
+
+
+def test_review_warns_about_removals_on_a_configured_machine(monkeypatch, catalog, system, runner):
+    printed: list[str] = []
+    current = MachineState(
+        machine="m", profile="work", modules=["cli", "editors"], picks={"editors": ["zed"]}
+    )
+    stub(monkeypatch, selects=[wizard.SAVE], apps=[tick(("pkg", "editors", "zed"))])
+    monkeypatch.setattr(wizard.questionary, "print", lambda text, **k: printed.append(text))
+    wizard.run(catalog, system, runner, current=current)
+
+    assert any("Removed from the selection: CLI" in line for line in printed)
+
+
+def test_first_run_has_nothing_to_report_as_removed(monkeypatch, catalog, system, runner):
+    printed: list[str] = []
+    stub(monkeypatch, selects=["work", wizard.SAVE], apps=[tick(("mod", "media"))])
+    monkeypatch.setattr(wizard.questionary, "print", lambda text, **k: printed.append(text))
+    wizard.run(catalog, system, runner)
+
+    # Unticking the profile's suggestion is not removing anything the Mac had.
+    assert not any("Removed" in line for line in printed)

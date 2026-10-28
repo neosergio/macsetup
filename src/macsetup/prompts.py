@@ -28,6 +28,9 @@ class Row:
     value: Any = None
     checked: bool = False
     note: str = ""
+    # Shown instead of `note`, as a warning, while the row is unticked. It
+    # follows the tick live: unticking an installed app flags it on the spot.
+    note_off: str = ""
 
 
 _STYLE = Style.from_dict(
@@ -38,6 +41,7 @@ _STYLE = Style.from_dict(
         "checked": "fg:ansigreen",
         "pointed": "fg:ansicyan bold",
         "note": "#888888",
+        "warn": "fg:ansiyellow",
         "done": "bold",
         "answer": "fg:ansicyan",
     }
@@ -68,7 +72,9 @@ def toggle_list(message: str, hint: str, rows: list[Row], done: str, summary: st
                 out.append(("[SetCursorPosition]", ""))
             box = "✔" if i in checked else "☐"
             out.append((style, f"{'❯' if i == here else ' '} {box} {row.label}"))
-            if row.note:
+            if row.note_off and i not in checked:
+                out.append(("class:warn", f"  {row.note_off}"))
+            elif row.note:
                 out.append(("class:note", f"  {row.note}"))
             out.append(("", "\n"))
         is_done = here == len(rows)
