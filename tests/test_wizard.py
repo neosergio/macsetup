@@ -56,16 +56,25 @@ def runner() -> FakeRunner:
 
 
 def stub(monkeypatch, *, text, select, checkboxes):
-    """Feed canned answers; record the choices each checkbox was offered."""
+    """Feed canned answers; record the choices each checkbox was offered.
+
+    `select` answers the menus in order: the profile, then the review screen.
+    A single profile name is shorthand for picking it and saving at review.
+    """
     seen: list[list] = []
     queue = list(checkboxes)
+    selects = [select, wizard.SAVE] if isinstance(select, str) else list(select)
+    texts = [text] if isinstance(text, str) else list(text)
 
     def fake_checkbox(_message, choices=None, **_kw):
         seen.append(choices or [])
         return Answer(queue.pop(0))
 
-    monkeypatch.setattr(wizard.questionary, "text", lambda *a, **k: Answer(text))
-    monkeypatch.setattr(wizard.questionary, "select", lambda *a, **k: Answer(select))
+    def fake_text(_message, default=None, **_kw):
+        return Answer(texts.pop(0) if texts else default)
+
+    monkeypatch.setattr(wizard.questionary, "text", fake_text)
+    monkeypatch.setattr(wizard.questionary, "select", lambda *a, **k: Answer(selects.pop(0)))
     monkeypatch.setattr(wizard.questionary, "checkbox", fake_checkbox)
     monkeypatch.setattr(wizard.questionary, "print", lambda *a, **k: None)
     return seen
@@ -163,3 +172,84 @@ def test_cancelling_raises(monkeypatch, catalog, system, runner):
     monkeypatch.setattr(wizard.questionary, "text", lambda *a, **k: Answer(None))
     with pytest.raises(wizard.WizardAborted):
         wizard.run(catalog, system, runner)
+
+
+# --------------------------------------------------------------------------- #
+# Navigation
+
+
+def test_back_from_profile_returns_to_the_name(monkeypatch, catalog, system, runner):
+    stub(
+        monkeypatch,
+        text=["first", "second"],
+        select=[wizard.BACK, "work", wizard.SAVE],
+        checkboxes=[["cli"]],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    assert result.machine == "second"
+    assert result.profile == "work"
+
+
+def test_review_can_change_modules_keeping_the_previous_answer(
+    monkeypatch, catalog, system, runner
+):
+    seen = stub(
+        monkeypatch,
+        text="m",
+        select=["work", "modules", wizard.SAVE],
+        checkboxes=[["cli"], ["cli", "media"]],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    # The second time round, what was ticked before is ticked again --
+    # not the profile's defaults, which would undo the first answer.
+    assert {c.value for c in seen[1] if c.checked} == {"cli"}
+    assert set(result.modules) == {"cli", "media"}
+
+
+def test_review_can_redo_one_modules_picks(monkeypatch, catalog, system, runner):
+    seen = stub(
+        monkeypatch,
+        text="m",
+        select=["work", "pick:editors", wizard.SAVE],
+        checkboxes=[["cli", "editors"], ["zed"], ["neovim"]],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    # Only the editors picks are asked again, pre-ticked with the first answer.
+    assert len(seen) == 3
+    assert {c.value for c in seen[2] if c.checked} == {"zed"}
+    assert result.picks == {"editors": ["neovim"]}
+
+
+def test_changing_profile_resets_module_preselection(monkeypatch, catalog, system, runner):
+    seen = stub(
+        monkeypatch,
+        text="m",
+        select=["work", "profile", "personal", wizard.SAVE],
+        checkboxes=[["cli", "editors"], ["zed"], ["media"]],
+    )
+    result = wizard.run(catalog, system, runner)
+
+    assert {c.value for c in seen[2] if c.checked} == {"media"}
+    assert result.profile == "personal"
+    assert result.modules == ["media"]
+    # editors is no longer selected, so its picks are not saved.
+    assert result.picks == {}
+
+
+def test_review_offers_a_change_entry_per_pick_module(monkeypatch, catalog, system, runner):
+    offered: list[list] = []
+    selects = ["work", wizard.SAVE]
+
+    def fake_select(_message, choices=None, **_kw):
+        offered.append(choices or [])
+        return Answer(selects.pop(0))
+
+    stub(monkeypatch, text="m", select=[], checkboxes=[["cli", "editors"], ["zed"]])
+    monkeypatch.setattr(wizard.questionary, "select", fake_select)
+    wizard.run(catalog, system, runner)
+
+    review = {c.value for c in offered[1]}
+    assert {wizard.SAVE, "name", "profile", "modules", "pick:editors"} == review

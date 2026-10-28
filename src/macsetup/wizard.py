@@ -18,6 +18,10 @@ from .runner import Runner
 from .state import MachineState
 
 CUSTOM = "custom"
+# Sentinels for navigation answers. Not valid module, profile or package names
+# by construction (they contain characters the catalog never uses).
+BACK = "<back>"
+SAVE = "<save>"
 
 _STYLE = questionary.Style(
     [
@@ -65,42 +69,104 @@ def run(
     *,
     current: MachineState | None = None,
 ) -> MachineState:
-    """Ask the questions. Returns the chosen state; saving is the caller's job."""
+    """Ask the questions. Returns the chosen state; saving is the caller's job.
 
-    machine = _ask(
-        questionary.text(
-            "Name this machine",
-            default=current.machine if current else default_machine_name(runner),
-            style=_STYLE,
-        )
-    ).strip()
+    A sequence of steps rather than straight-line prompts, so any answer can be
+    revisited: the profile menu has a Back entry, and a review screen at the
+    end jumps to any earlier step with the answers given so far pre-filled.
+    """
+    machine = current.machine if current else default_machine_name(runner)
+    profile = current.profile if current else "work"
+    # None until the module step has been answered; going back keeps the answer.
+    chosen: list[str] | None = None
+    picks: dict[str, list[str]] = dict(current.picks) if current else {}
 
-    profile_choices = [
+    step = "name"
+    only_pick: str | None = None  # set when review asks to redo one module's picks
+    while True:
+        if step == "name":
+            machine = _ask(questionary.text("Name this machine", default=machine, style=_STYLE))
+            machine = machine.strip()
+            step = "profile"
+
+        elif step == "profile":
+            answer = _ask_profile(catalog, profile)
+            if answer == BACK:
+                step = "name"
+                continue
+            if answer != profile:
+                chosen = None  # a different profile means different pre-ticks
+            profile = answer
+            step = "modules"
+
+        elif step == "modules":
+            chosen = _ask_modules(catalog, system, current, profile, chosen)
+            step = "picks"
+
+        elif step == "picks":
+            for module in catalog.resolve(only=chosen):
+                if module.select != "pick" or (only_pick and module.id != only_pick):
+                    continue
+                picks[module.id] = _ask_picks(module, system, picks.get(module.id))
+            only_pick = None
+            step = "review"
+
+        elif step == "review":
+            resolved = catalog.resolve(only=chosen)
+            action = _review(machine, profile, resolved, picks)
+            if action == SAVE:
+                break
+            if action.startswith("pick:"):
+                only_pick = action.removeprefix("pick:")
+                step = "picks"
+            else:
+                step = action
+
+    resolved = catalog.resolve(only=chosen)
+    return MachineState(
+        machine=machine,
+        profile=profile,
+        modules=[m.id for m in resolved if not m.always],
+        picks={m.id: picks[m.id] for m in resolved if m.select == "pick" and m.id in picks},
+        vars=dict(current.vars) if current else {},
+    )
+
+
+def _ask_profile(catalog: Catalog, profile: str) -> str:
+    choices = [
         Choice(
             title=f"{name:<10} {'everything' if entries == ['*'] else f'{len(entries)} modules'}",
             value=name,
         )
         for name, entries in catalog.profiles.items()
     ]
-    profile_choices.append(Choice(title="custom     pick modules yourself", value=CUSTOM))
-
-    profile = _ask(
+    choices.append(Choice(title="custom     pick modules yourself", value=CUSTOM))
+    choices.append(Choice(title="← back", value=BACK))
+    return _ask(
         questionary.select(
             "Profile",
-            choices=profile_choices,
-            default=next(
-                (c for c in profile_choices if c.value == (current.profile if current else "work")),
-                None,
-            ),
+            choices=choices,
+            default=next((c for c in choices if c.value == profile), None),
             style=_STYLE,
         )
     )
 
-    # Pre-tick from the current machine if reconfiguring, otherwise the profile.
-    # An empty saved selection falls through to the profile on purpose: pre-ticking
+
+def _ask_modules(
+    catalog: Catalog,
+    system: System,
+    current: MachineState | None,
+    profile: str,
+    chosen: list[str] | None,
+) -> list[str]:
+    # A previous answer to this step wins; then the current machine if
+    # reconfiguring the same profile; otherwise the profile itself. An empty
+    # saved selection falls through to the profile on purpose: pre-ticking
     # nothing makes plain Enter save nothing, so an empty machine.toml would
     # otherwise re-empty itself every time the wizard runs.
-    if current and current.modules and profile == current.profile:
+    if chosen is not None:
+        preselected = set(chosen)
+    elif current and current.modules and profile == current.profile:
         preselected = set(current.modules)
     elif profile == CUSTOM:
         preselected = set()
@@ -113,7 +179,7 @@ def run(
         names = ", ".join(m.id for m in always)
         questionary.print(f"  always included: {names}", style="fg:#888888")
 
-    chosen = _ask(
+    answer = _ask(
         questionary.checkbox(
             "Modules for this machine",
             choices=[
@@ -130,40 +196,45 @@ def run(
 
     # requires may pull in modules the user did not tick; surface that rather
     # than silently installing something they did not choose.
-    resolved = catalog.resolve(only=chosen)
-    pulled = [m.id for m in resolved if m.id not in chosen and not m.always]
+    pulled = [m.id for m in catalog.resolve(only=answer) if m.id not in answer and not m.always]
     if pulled:
         questionary.print(f"  + required by your selection: {', '.join(pulled)}", style="fg:yellow")
+    return list(answer)
 
-    selected_ids = [m.id for m in resolved if not m.always]
 
-    picks: dict[str, list[str]] = {}
-    for module in resolved:
-        if module.select != "pick":
-            continue
-        if current and module.id in current.picks:
-            checked = set(current.picks[module.id])
-        else:
-            checked = set(module.default)
-        choices = []
-        for package in module.packages:
-            mark = "  (installed)" if system.has(package.name, cask=package.cask) else ""
-            choices.append(
-                Choice(
-                    title=f"{package.name}{mark}",
-                    value=package.name,
-                    checked=package.name in checked,
-                )
+def _ask_picks(module: Module, system: System, previous: list[str] | None) -> list[str]:
+    checked = set(previous) if previous is not None else set(module.default)
+    choices = []
+    for package in module.packages:
+        mark = "  (installed)" if system.has(package.name, cask=package.cask) else ""
+        choices.append(
+            Choice(
+                title=f"{package.name}{mark}",
+                value=package.name,
+                checked=package.name in checked,
             )
-        answer = _ask(
-            questionary.checkbox(f"{module.name} — choose packages", choices=choices, style=_STYLE)
         )
-        picks[module.id] = list(answer)
-
-    return MachineState(
-        machine=machine,
-        profile=profile,
-        modules=selected_ids,
-        picks=picks,
-        vars=dict(current.vars) if current else {},
+    answer = _ask(
+        questionary.checkbox(f"{module.name} — choose packages", choices=choices, style=_STYLE)
     )
+    return list(answer)
+
+
+def _review(machine: str, profile: str, resolved: list[Module], picks: dict[str, list[str]]) -> str:
+    """Summarise the answers and ask whether to save or go back to a step."""
+    modules = [m for m in resolved if not m.always]
+    questionary.print(f"\n  machine  {machine}", style="bold")
+    questionary.print(f"  profile  {profile}", style="bold")
+    questionary.print(f"  modules  {', '.join(m.id for m in modules) or '(none)'}", style="bold")
+    pick_modules = [m for m in modules if m.select == "pick"]
+    for m in pick_modules:
+        questionary.print(f"    {m.id:<12} {', '.join(picks.get(m.id, [])) or '(none)'}")
+
+    choices = [
+        Choice(title="Save", value=SAVE),
+        Choice(title="← change machine name", value="name"),
+        Choice(title="← change profile", value="profile"),
+        Choice(title="← change modules", value="modules"),
+    ]
+    choices += [Choice(title=f"← change {m.name}", value=f"pick:{m.id}") for m in pick_modules]
+    return _ask(questionary.select("Review", choices=choices, style=_STYLE))

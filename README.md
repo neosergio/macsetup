@@ -53,7 +53,8 @@ macsetup init
 
 `init` runs a wizard (machine name → profile → per-module choices), saves the
 result to `~/.config/macsetup/machine.toml`, and applies it. After that no
-flags are needed.
+flags are needed. The wizard ends on a review screen that can jump back to any
+step with your answers kept, and the profile menu has a back entry too.
 
 ```sh
 macsetup plan        # what apply would do; changes nothing
