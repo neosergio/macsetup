@@ -1,0 +1,55 @@
+name: Release
+
+# Pushing a tag like v0.2.0 publishes that version to PyPI. Bump `version` in
+# pyproject.toml first; the tag has to match it or nothing is published.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  # The full CI run, Linux and macOS, gates the upload: a tag on a commit that
+  # never passed CI should not reach PyPI.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Pinned to an exact tag on purpose; see the note in ci.yml.
+      - uses: astral-sh/setup-uv@v10.3.2
+
+      # PyPI versions are permanent -- a mismatch caught here costs a re-tag,
+      # one caught after upload costs a version number.
+      - name: tag matches pyproject version
+        run: |
+          version=$(uv version --short)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error file=pyproject.toml::tag $GITHUB_REF_NAME but pyproject says $version"
+            exit 1
+          fi
+
+      - run: uv build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  # Separate from build so the OIDC token that can publish never shares a job
+  # with the build. Trusted publishing: no API token is stored anywhere, PyPI
+  # trusts this workflow + environment directly.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/macsetup/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
