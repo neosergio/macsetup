@@ -30,11 +30,18 @@ class Package(BaseModel):
     name: str
     cask: bool = False
     mas: int | None = None
+    # What the wizard shows. Homebrew tokens are not always the name people
+    # know an app by -- Dia is `thebrowsercompany-dia`.
+    title: str | None = None
 
     @model_validator(mode="before")
     @classmethod
     def _shorthand(cls, value: Any) -> Any:
         return {"name": value} if isinstance(value, str) else value
+
+    @property
+    def label(self) -> str:
+        return self.title or self.name
 
     def brewfile_line(self) -> str:
         if self.mas is not None:

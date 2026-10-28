@@ -11,6 +11,6 @@ description: Pick the ones this machine needs
 select: pick
 default: [visual-studio-code]
 packages:
-  - {name: visual-studio-code, cask: true}
-  - {name: zed, cask: true}
-  - {name: jetbrains-toolbox, cask: true}
+  - {name: visual-studio-code, cask: true, title: Visual Studio Code}
+  - {name: zed, cask: true, title: Zed}
+  - {name: jetbrains-toolbox, cask: true, title: JetBrains Toolbox}

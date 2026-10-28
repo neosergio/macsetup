@@ -2,4 +2,4 @@ id: fonts
 name: Fonts
 description: Nerd Fonts, pulled in by anything that renders glyphs
 packages:
-  - {name: font-meslo-lg-nerd-font, cask: true}
+  - {name: font-meslo-lg-nerd-font, cask: true, title: Meslo Nerd Font}

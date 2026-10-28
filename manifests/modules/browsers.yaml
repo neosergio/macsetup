@@ -6,8 +6,8 @@ default: [google-chrome]
 # Arc itself is left out: Homebrew marks its cask deprecated. Zen and Dia
 # are the two places Arc users go -- Dia is its official successor.
 packages:
-  - {name: google-chrome, cask: true}
-  - {name: firefox, cask: true}
-  - {name: brave-browser, cask: true}
-  - {name: zen, cask: true}
-  - {name: thebrowsercompany-dia, cask: true}
+  - {name: google-chrome, cask: true, title: Google Chrome}
+  - {name: firefox, cask: true, title: Firefox}
+  - {name: brave-browser, cask: true, title: Brave}
+  - {name: zen, cask: true, title: Zen}
+  - {name: thebrowsercompany-dia, cask: true, title: Dia}

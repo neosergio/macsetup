@@ -10,9 +10,9 @@ default: [ghostty]
 # project mostly ships nightlies now (wezterm@nightly). Stable is still the
 # safer default for a menu like this.
 packages:
-  - {name: ghostty, cask: true}
-  - {name: iterm2, cask: true}
-  - {name: warp, cask: true}
-  - {name: cmux, cask: true}       # built on Ghostty, for running agents side by side
-  - {name: kitty, cask: true}
-  - {name: wezterm, cask: true}
+  - {name: ghostty, cask: true, title: Ghostty}
+  - {name: iterm2, cask: true, title: iTerm2}
+  - {name: warp, cask: true, title: Warp}
+  - {name: cmux, cask: true, title: cmux}       # built on Ghostty, for running agents side by side
+  - {name: kitty, cask: true, title: kitty}
+  - {name: wezterm, cask: true, title: WezTerm}
