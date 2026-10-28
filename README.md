@@ -101,6 +101,7 @@ packages:
   - ripgrep                          # formula
   - {name: ghostty, cask: true}      # cask
   - {name: thebrowsercompany-dia, cask: true, title: Dia}   # shown as "Dia"
+  - neosergio/tap/git-wrong-email    # formula from a third-party tap
 files:
   - copy: zsh/cli.zsh
     to: ~/.config/macsetup/zsh/90-cli.zsh
@@ -110,6 +111,12 @@ files:
 `docker` is the CLI formula *and* Docker Desktop the cask — and a bare
 `brew install docker` silently picks the formula. Marking casks is the single
 biggest class of bug the manifest format exists to prevent.
+
+**Packages from a third-party tap use their full name**, `user/tap/name`.
+Homebrew taps the repository the first time it installs one, so a fresh
+machine needs no separate `brew tap` step. `brew list` reports only `name`,
+and that is what `plan`, `status` and the untracked list compare against, so
+an installed tap package counts as installed.
 
 `always: true` puts a module on every machine regardless of profile.
 `select: pick` lets the wizard tick the module's packages one by one, as a
