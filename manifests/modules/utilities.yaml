@@ -1,0 +1,23 @@
+id: utilities
+name: Utilities
+description: Desktop helpers
+select: pick
+# Pre-ticked are the ones useful on any Mac that do not change how you work;
+# the rest are offered unticked.
+#
+# Todoist's token is todoist-app: `todoist` is only an old alias, and brew
+# list reports the new name, so the alias would always plan as missing.
+default: [shottr, rectangle, raycast, maccy, appcleaner, keka]
+packages:
+  - {name: shottr, cask: true, title: Shottr}
+  - {name: rectangle, cask: true, title: Rectangle}
+  - {name: todoist-app, cask: true, title: Todoist}
+  - {name: raycast, cask: true, title: Raycast}
+  - {name: maccy, cask: true, title: Maccy}
+  - {name: stats, cask: true, title: Stats}
+  - {name: jordanbaird-ice, cask: true, title: Ice}
+  - {name: alt-tab, cask: true, title: AltTab}
+  - {name: appcleaner, cask: true, title: AppCleaner}
+  - {name: keka, cask: true, title: Keka}
+  - {name: iina, cask: true, title: IINA}
+  - {name: monitorcontrol, cask: true, title: MonitorControl}

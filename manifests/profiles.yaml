@@ -14,6 +14,8 @@ profiles:
     - browsers
     - terminals
     - ai
+    - utilities
+    - security
 
   personal:
     - cli
@@ -23,6 +25,8 @@ profiles:
     - browsers
     - terminals
     - ai
+    - utilities
+    - security
 
   # A loaner or travel machine: enough to be useful in a terminal, nothing else.
   minimal:

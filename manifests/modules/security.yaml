@@ -1,0 +1,8 @@
+id: security
+name: Security
+description: Password managers
+select: pick
+default: [1password]
+packages:
+  - {name: 1password, cask: true, title: 1Password}
+  - {name: bitwarden, cask: true, title: Bitwarden}
