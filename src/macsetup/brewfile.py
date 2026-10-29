@@ -40,6 +40,22 @@ def write(module_id: str, packages: Iterable[Package], *, cache_dir: Path | None
     return path
 
 
+def trust_taps(runner: Runner, packages: Iterable[Package]):
+    """Mark every third-party tap these packages come from as trusted.
+
+    Homebrew 7 refuses to load a formula or cask from a tap nobody has trusted,
+    so on a fresh machine `brew bundle` taps the repository and then fails on
+    the first package in it. Trusting works before the tap exists and is a
+    no-op once it is trusted, so it is safe to run on every apply. Homebrew
+    older than that has no `trust` command and no such check; the failure is
+    ignored there, and a real problem still surfaces from `brew bundle`.
+    """
+    taps = sorted({p.tap for p in packages if p.tap})
+    if not taps:
+        return None
+    return runner.run(["brew", "trust", "--tap", *taps])
+
+
 def install(runner: Runner, brewfile: Path, *, upgrade: bool = False, jobs: int | None = None):
     """Run `brew bundle install` against a generated Brewfile.
 

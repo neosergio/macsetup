@@ -116,6 +116,31 @@ def test_brewfile_groups_formulae_before_casks():
     assert text.splitlines() == ['brew "git"', 'cask "arc"', 'cask "zed"']
 
 
+def test_package_tap_comes_from_the_full_name():
+    assert Package(name="neosergio/tap/git-wrong-email").tap == "neosergio/tap"
+    assert Package(name="git").tap is None
+
+
+def test_trust_taps_trusts_each_third_party_tap_once():
+    runner = FakeRunner()
+    brewfile.trust_taps(
+        runner,
+        [
+            Package(name="git"),
+            Package(name="neosergio/tap/git-wrong-email"),
+            Package(name="neosergio/tap/other"),
+            Package(name="acme/tools/thing", cask=True),
+        ],
+    )
+    assert runner.calls == [["brew", "trust", "--tap", "acme/tools", "neosergio/tap"]]
+
+
+def test_trust_taps_runs_nothing_without_third_party_taps():
+    runner = FakeRunner()
+    assert brewfile.trust_taps(runner, [Package(name="git")]) is None
+    assert runner.calls == []
+
+
 def test_install_defaults_to_no_upgrade():
     runner = FakeRunner()
     brewfile.install(runner, "/tmp/x.Brewfile")

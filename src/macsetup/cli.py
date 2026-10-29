@@ -206,6 +206,7 @@ def _install(plan: Plan, selection: Selection, *, upgrade: bool, jobs: int | Non
         packages = module_plan.selected
         if packages and (module_plan.missing or upgrade):
             path = brewfile.write(module_plan.module.id, packages)
+            brewfile.trust_taps(runner, packages)
             if not brewfile.install(runner, path, upgrade=upgrade, jobs=jobs).ok:
                 failed.append(module_plan.module.id)
                 console.print(f"[red]{module_plan.module.id} failed[/] (Brewfile kept at {path})")

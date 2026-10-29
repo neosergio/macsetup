@@ -43,6 +43,12 @@ class Package(BaseModel):
     def label(self) -> str:
         return self.title or self.name
 
+    @property
+    def tap(self) -> str | None:
+        """`user/tap` for a package named `user/tap/name`, else None."""
+        parts = self.name.split("/")
+        return "/".join(parts[:2]) if len(parts) == 3 else None
+
     def brewfile_line(self) -> str:
         if self.mas is not None:
             return f'mas "{self.name}", id: {self.mas}'

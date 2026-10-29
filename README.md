@@ -113,8 +113,10 @@ files:
 biggest class of bug the manifest format exists to prevent.
 
 **Packages from a third-party tap use their full name**, `user/tap/name`.
-Homebrew taps the repository the first time it installs one, so a fresh
-machine needs no separate `brew tap` step. `brew list` reports only `name`,
+Homebrew taps the repository the first time it installs one, and since
+Homebrew 7 refuses to load anything from a tap nobody has trusted, `apply`
+runs `brew trust --tap user/tap` first. A fresh machine needs no separate
+`brew tap` or `brew trust` step. `brew list` reports only `name`,
 and that is what `plan`, `status` and the untracked list compare against, so
 an installed tap package counts as installed.
 
