@@ -4,13 +4,17 @@ install.sh puts macsetup on PATH with `uv tool install`, so uv owns the
 install and upgrading it is `uv tool upgrade`. The refresh matters right after
 a release: uv caches PyPI's index, and without it a version published minutes
 ago can come back as "Nothing to upgrade".
+
+The refresh comes from --reinstall-package, not --refresh-package: newer uv
+(0.13) dropped the refresh flags from `tool upgrade`, and reinstalling one
+small wheel costs nothing.
 """
 
 from __future__ import annotations
 
 from .runner import Result, Runner
 
-COMMAND = ["uv", "tool", "upgrade", "--refresh-package", "macsetup", "macsetup"]
+COMMAND = ["uv", "tool", "upgrade", "--reinstall-package", "macsetup", "macsetup"]
 
 
 def upgrade(runner: Runner) -> Result:
