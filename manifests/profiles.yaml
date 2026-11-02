@@ -16,6 +16,7 @@ profiles:
     - ai
     - utilities
     - security
+    - remote-access
 
   personal:
     - cli
@@ -27,6 +28,7 @@ profiles:
     - ai
     - utilities
     - security
+    - remote-access
 
   # A loaner or travel machine: enough to be useful in a terminal, nothing else.
   minimal:

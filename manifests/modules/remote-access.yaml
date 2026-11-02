@@ -1,0 +1,15 @@
+id: remote-access
+name: Remote access
+description: Reach this Mac from anywhere, and keep sessions alive
+select: pick
+# tmux is what makes working from a phone viable: a dropped connection
+# detaches instead of killing whatever was running. mosh is the server half;
+# the client lives on the device connecting in, so it is offered unticked.
+#
+# tailscale-app, not tailscale: the cask token is only an alias, and brew list
+# reports the new name, so the alias would always plan as missing.
+default: [tailscale-app, tmux]
+packages:
+  - {name: tailscale-app, cask: true, title: Tailscale}
+  - tmux
+  - mosh
