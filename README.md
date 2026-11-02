@@ -68,6 +68,7 @@ macsetup apply       # do it
 macsetup status      # drift: manifest vs this machine
 macsetup untracked   # installed packages no selected module accounts for
 macsetup modules     # the whole catalog and its profiles
+macsetup self-update # upgrade macsetup itself to the latest release
 ```
 
 Every wizard answer has a flag equivalent, so a machine can be provisioned

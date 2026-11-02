@@ -8,6 +8,7 @@ Selection precedence: --only beats --profile beats saved machine state.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,7 +18,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import brewfile, i18n, wizard
+from . import brewfile, i18n, selfupdate, wizard
 from . import files as files_mod
 from . import state as state_mod
 from .detect import System, detect
@@ -476,6 +477,24 @@ def untracked_cmd(profile: ProfileOpt = None, only: OnlyOpt = None) -> None:
         console.print("  " + "\n  ".join(casks))
     console.print()
     console.print("[dim]Candidates to adopt into a module, or to remove once prune lands.[/]")
+
+
+@app.command("self-update")
+def self_update() -> None:
+    """Upgrade macsetup itself to the latest release."""
+    if not shutil.which("uv"):
+        console.print(
+            "[red]uv not found.[/] macsetup is upgraded with uv; install it with "
+            "[bold]brew install uv[/] or re-run install.sh."
+        )
+        raise typer.Exit(1)
+    result = selfupdate.upgrade(SubprocessRunner())
+    if not result.ok:
+        console.print(
+            "[red]Upgrade failed.[/] If macsetup was not installed with "
+            "`uv tool install`, upgrade it the way you installed it."
+        )
+        raise typer.Exit(result.code)
 
 
 if __name__ == "__main__":
